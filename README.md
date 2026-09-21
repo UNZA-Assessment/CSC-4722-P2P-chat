@@ -11,8 +11,8 @@ algorithm), built on `com.sun.net.httpserver.HttpServer` and
 |------|---------|------|
 | A — Core & Infra | A1 (you), A2 | `Node.java`, `Json.java`, `NetworkClient.java`, logging format, `ChatHandler` routing skeleton |
 | B — Clocks | B1, B2 | `Clock.java`, `Message.java`, log ordering |
-| C — Election | C1, C2 | `Election.java`, failure detector, `/api/election` |
-| D — Mutual Exclusion | D1, D2 | `MutualExclusion.java`, scoreboard, ring repair |
+| C — Mutual Exclusion | C1, C2 | `MutualExclusion.java`, scoreboard, ring repair |
+| D — Election | D1, D2 | `Election.java`, failure detector, `/api/election` |
 
 See `PROTOCOL.md` for the frozen contract (payload shapes, class signatures)
 that all four pairs build against. **Do not change it without asking A1.**
@@ -22,7 +22,7 @@ that all four pairs build against. **Do not change it without asking A1.**
 - ✅ **Done** — `Node.java`, `start_all.sh`, `kill_all.sh`, `ChatHandler.java` (routing only)
 - 🟡 **Starter, needs refinement by owning pair** — `Json.java`, `NetworkClient.java` (A2)
 - ⬜ **Stub / TODO for owning pair** — `Clock.java` (B), `Message.java` (B),
-  `MutualExclusion.java` (D), `Election.java` (C)
+  `MutualExclusion.java` (C), `Election.java` (D)
 
 ## Requirements
 
@@ -88,9 +88,9 @@ does not land — see PROTOCOL.md for the merge process.
 
 - `test_ordering.sh` (Pair B) — fires concurrent chat messages at multiple
   nodes, dumps each node's log to prove consistent ordering
-- `test_mutex.sh` (Pair D) — several nodes request the critical section at
+- `test_mutex.sh` (Pair C) — several nodes request the critical section at
   once; proves non-overlapping CS intervals from logs
-- `test_election.sh` (Pair C) — kills the current leader, captures the
+- `test_election.sh` (Pair D) — kills the current leader, captures the
   ELECTION → OK → COORDINATOR sequence across surviving nodes
 
 ## Branching & merge process
