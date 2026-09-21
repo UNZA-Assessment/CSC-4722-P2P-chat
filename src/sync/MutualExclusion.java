@@ -3,7 +3,7 @@ package sync;
 import api.NetworkClient;
 
 /**
- * Owned by Pair D. TODO items are the assignment's Mutual Exclusion &
+ * Owned by Pair C. TODO items are the assignment's Mutual Exclusion &
  * Token Ring requirement (25 marks).
  *
  * IMPORTANT bug in the original skeleton that this scaffold sets you up
@@ -37,7 +37,7 @@ public class MutualExclusion {
     public synchronized void receiveToken() {
         hasToken = true;
         if (wantsToUpdateScore) {
-            // TODO (Pair D): execute critical section - update shared scoreboard.
+            // TODO (Pair C): execute critical section - update shared scoreboard.
             // Log entry/exit timestamps here; this is your proof of mutual
             // exclusion for the report.
             wantsToUpdateScore = false;
@@ -46,13 +46,13 @@ public class MutualExclusion {
     }
 
     private void passToken() {
-        // TODO (Pair D): build the {"token_holder":..,"scores":{...}} payload
+        // TODO (Pair C): build the {"token_holder":..,"scores":{...}} payload
         //                with api.Json.stringify(...)
-        // TODO (Pair D): networkClient.post(nextPeerPort, "/api/token", payload)
+        // TODO (Pair C): networkClient.post(nextPeerPort, "/api/token", payload)
         //                - this is async, do not block here
-        // TODO (Pair D): before sending, consider probing networkClient
+        // TODO (Pair C): before sending, consider probing networkClient
         //                .getHealth(nextPeerPort) and walking forward past
         //                dead peers (ring repair) - see the assignment brief
-        // TODO (Pair D): set hasToken = false once the send is issued
+        // TODO (Pair C): set hasToken = false once the send is issued
     }
 }

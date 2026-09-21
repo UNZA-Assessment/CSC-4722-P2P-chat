@@ -75,31 +75,25 @@ public class ChatHandler implements HttpHandler {
         sendResponse(exchange, 200, "{\"status\":\"Message Received\"}");
     }
 
-    // --- Owned by Pair D (mutual exclusion) ---
+    // --- Owned by Pair C (mutual exclusion) ---
     private void handleToken(HttpExchange exchange) throws IOException {
-        String body = readBody(exchange); // TODO (Pair D): parse token_holder / scores payload
+        String body = readBody(exchange); // TODO (Pair C): parse token_holder / scores payload
         mutex.receiveToken();
         sendResponse(exchange, 200, "{\"status\":\"Token Handled\"}");
     }
 
-    // --- Owned by Pair C (election) ---
+    // --- Owned by Pair D (election) ---
     @SuppressWarnings("unchecked")
     private void handleElection(HttpExchange exchange) throws IOException {
         String body = readBody(exchange);
         Map<String, Object> payload = (Map<String, Object>) Json.parse(body);
 
-        String type = (String) payload.get("type");
-        int senderId = ((Double) payload.get("sender_id")).intValue();
-        if ("ELECTION".equals(type)) {
-            election.handleElectionMessage(senderId);
-        } else if ("OK".equals(type)) {
-            election.handleOkMessage(senderId);
-        } else if ("COORDINATOR".equals(type)) {
-            election.handleCoordinatorMessage(senderId);
-        } else {
-            sendResponse(exchange, 400, "{\"error\":\"Unknown election message type\"}");
-            return;
-        }
+        // TODO (Pair D): read "type" and "sender_id" from payload
+        // TODO (Pair D): dispatch to election.handleElectionMessage(senderId)
+        //                or election.handleCoordinatorMessage(senderId)
+        //                based on "type". Reply immediately - do NOT run
+        //                the election logic on this request thread; hand
+        //                it to a worker so this handler returns fast.
 
         sendResponse(exchange, 200, "{\"status\":\"OK\"}");
     }
