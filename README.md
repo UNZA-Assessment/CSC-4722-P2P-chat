@@ -9,7 +9,7 @@ algorithm), built on `com.sun.net.httpserver.HttpServer` and
 
 | Pair | Members | Owns |
 |------|---------|------|
-| A — Core & Infra | A1 (you), A2 | `Node.java`, `Json.java`, `NetworkClient.java`, logging format, `ChatHandler` routing skeleton |
+| A — Core & Infra | A1, A2 | `Node.java`, `Json.java`, `NetworkClient.java`, logging format, `ChatHandler` routing skeleton |
 | B — Clocks | B1, B2 | `Clock.java`, `Message.java`, log ordering |
 | C — Mutual Exclusion | C1, C2 | `MutualExclusion.java`, scoreboard, ring repair |
 | D — Election | D1, D2 | `Election.java`, failure detector, `/api/election` |
