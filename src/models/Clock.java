@@ -17,6 +17,9 @@ public class Clock {
     private final int nodeId;
 
     public Clock(int nodeId, int totalNodes) {
+        if (nodeId < 0 || nodeId >= totalNodes) {
+            throw new IllegalArgumentException("nodeId must be in [0, totalNodes)");
+        }
         this.nodeId = nodeId;
         this.vectorClock = new int[totalNodes];
     }
