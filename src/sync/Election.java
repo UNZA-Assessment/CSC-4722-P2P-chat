@@ -58,6 +58,14 @@ public class Election {
         System.out.println("New Leader recognized: Node " + newLeaderId);
     }
 
+    // Added by Pair A so Node.java's background health poller can read
+    // current leader state without touching your TODOs above. If you
+    // change how currentLeaderId is tracked, keep this getter's contract
+    // (returns the node ID this node currently believes is leader).
+    public synchronized int getCurrentLeaderId() {
+        return currentLeaderId;
+    }
+
     // TODO (Pair D): background failure detector - poll
     //                networkClient.getHealth(portOf(currentLeaderId)) on an
     //                interval; after N consecutive failures, call
