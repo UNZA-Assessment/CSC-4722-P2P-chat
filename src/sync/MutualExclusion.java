@@ -34,25 +34,50 @@ public class MutualExclusion {
         this.wantsToUpdateScore = true;
     }
 
-    public synchronized void receiveToken() {
+    public void receiveToken() {
+
+    synchronized (this) {
         hasToken = true;
+
+        System.out.println("Node " + nodeId + " received the token.");
+
         if (wantsToUpdateScore) {
-            // TODO (Pair D): execute critical section - update shared scoreboard.
-            // Log entry/exit timestamps here; this is your proof of mutual
-            // exclusion for the report.
+
+            // TODO: Update shared scoreboard here.
+            System.out.println(
+                    "Node " + nodeId + " ENTERING critical section.");
+
+            // Scoreboard update goes here
+
+            System.out.println(
+                    "Node " + nodeId + " EXITING critical section.");
+
             wantsToUpdateScore = false;
         }
-        passToken();
+
+        // Token is being passed on.
+        hasToken = false;
     }
 
-    private void passToken() {
-        // TODO (Pair D): build the {"token_holder":..,"scores":{...}} payload
-        //                with api.Json.stringify(...)
-        // TODO (Pair D): networkClient.post(nextPeerPort, "/api/token", payload)
-        //                - this is async, do not block here
-        // TODO (Pair D): before sending, consider probing networkClient
-        //                .getHealth(nextPeerPort) and walking forward past
-        //                dead peers (ring repair) - see the assignment brief
-        // TODO (Pair D): set hasToken = false once the send is issued
-    }
+    // IMPORTANT:
+    // This happens AFTER synchronized block has released the lock.
+    passToken();
+}
+
+
+   private void passToken() {
+
+    String payload =
+            "{\"token_holder\":" + nodeId + ",\"scores\":{}}";
+
+    System.out.println(
+            "Node " + nodeId +
+            " passing token to port " + nextPeerPort);
+
+    networkClient.post(
+            nextPeerPort,
+            "/api/token",
+            payload);
+}
+
 }
