@@ -53,14 +53,14 @@ Signatures as given in the skeleton — do not change the public method
 signatures (`tick()`, `updateOnReceive(int, int[])`, `getLamportTime()`,
 `getVectorClock()`), since `ChatHandler` and `Node` are written against them.
 
-### `sync.MutualExclusion` (owned by Pair C)
+### `sync.MutualExclusion` (owned by Pair D)
 Signatures as given in the skeleton
 (`requestCriticalSection()`, `receiveToken()`). If you add a callback for
 "critical section entered/exited" for logging, name it
 `onCriticalSectionEnter()` / `onCriticalSectionExit()` and tell A1 — Node.java
 may need to wire it to the logger.
 
-### `sync.Election` (owned by Pair D)
+### `sync.Election` (owned by Pair C)
 Signatures as given in the skeleton
 (`startElection()`, `handleElectionMessage(int)`,
 `handleCoordinatorMessage(int)`). Election needs a way to *send* HTTP

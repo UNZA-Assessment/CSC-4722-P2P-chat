@@ -3,7 +3,7 @@ package sync;
 import api.NetworkClient;
 
 /**
- * Owned by Pair C. TODO items are the assignment's Mutual Exclusion &
+ * Owned by Pair D. TODO items are the assignment's Mutual Exclusion &
  * Token Ring requirement (25 marks).
  *
  * IMPORTANT bug in the original skeleton that this scaffold sets you up
