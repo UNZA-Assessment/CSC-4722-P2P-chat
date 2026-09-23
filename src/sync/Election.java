@@ -1,15 +1,11 @@
 package sync;
 
-import api.Json;
 import api.NetworkClient;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Owned by Pair C. TODO items are the assignment's Bully Election
+ * Owned by Pair D. TODO items are the assignment's Bully Election
  * requirement (25 marks).
  *
  * Two bugs in the original skeleton this scaffold sets you up to fix:
@@ -23,142 +19,47 @@ import java.util.Map;
  */
 public class Election {
 
-    private static final long ELECTION_TIMEOUT_MILLIS = 1000;
     private final int nodeId;
     private final List<Integer> peerPorts;
     private final NetworkClient networkClient;
 
     private int currentLeaderId;
-    private boolean isElectionInProgress;
-    private boolean higherNodeResponded;
-    private long electionGeneration;
+    private boolean isElectionInProgress = false;
 
     public Election(int nodeId, List<Integer> peerPorts, NetworkClient networkClient) {
         this.nodeId = nodeId;
-        this.peerPorts = new ArrayList<>(peerPorts);
+        this.peerPorts = peerPorts;
         this.networkClient = networkClient;
-        this.currentLeaderId = highestKnownNodeId();
+        // TODO (Pair D): replace with max node ID actually known, not size()-1
+        this.currentLeaderId = peerPorts.size() - 1;
     }
 
     public void startElection() {
-        final long generation;
-        synchronized (this) {
-            if (isElectionInProgress) {
-                return;
-            }
-            isElectionInProgress = true;
-            higherNodeResponded = false;
-            generation = ++electionGeneration;
-        }
-
         System.out.println("Node " + nodeId + " starting election...");
-        String payload = electionPayload("ELECTION", nodeId);
-        for (int higherNodeId : higherNodeIds()) {
-            networkClient.post(portForNode(higherNodeId), "/api/election", payload);
-        }
-
-        Thread timeoutThread = new Thread(
-                () -> finishElectionAfterTimeout(generation),
-                "election-timeout-" + nodeId + "-" + generation);
-        timeoutThread.setDaemon(true);
-        timeoutThread.start();
+        isElectionInProgress = true;
+        // TODO (Pair D): send {"type":"ELECTION","sender_id":nodeId} to all
+        //                peers with higher node IDs via networkClient.post
+        // TODO (Pair D): if no higher node replies within a timeout,
+        //                declare self leader
+        // TODO (Pair D): if self wins, broadcast
+        //                {"type":"COORDINATOR","sender_id":nodeId} to all peers
     }
 
-    /** Replies immediately, then starts this node's election asynchronously. */
     public void handleElectionMessage(int senderId) {
-        networkClient.post(portForNode(senderId), "/api/election",
-                electionPayload("OK", nodeId));
-
-        Thread electionThread = new Thread(this::startElection,
-                "election-response-" + nodeId);
-        electionThread.setDaemon(true);
-        electionThread.start();
+        // TODO (Pair D): send {"type":"OK","sender_id":nodeId} back to senderId
+        //                BEFORE doing anything else
+        // TODO (Pair D): if not already in an election, start one on a new
+        //                thread - do not call startElection() inline here
     }
 
-    /** Records an OK from a higher-priority node for the active election. */
-    public synchronized void handleOkMessage(int senderId) {
-        if (senderId > nodeId && isElectionInProgress) {
-            higherNodeResponded = true;
-        }
-    }
-
-    public synchronized void handleCoordinatorMessage(int newLeaderId) {
-        currentLeaderId = newLeaderId;
-        isElectionInProgress = false;
-        higherNodeResponded = false;
-        electionGeneration++;
+    public void handleCoordinatorMessage(int newLeaderId) {
+        this.currentLeaderId = newLeaderId;
+        this.isElectionInProgress = false;
         System.out.println("New Leader recognized: Node " + newLeaderId);
     }
 
-    private void finishElectionAfterTimeout(long generation) {
-        try {
-            Thread.sleep(ELECTION_TIMEOUT_MILLIS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        synchronized (this) {
-            if (generation != electionGeneration || !isElectionInProgress) {
-                return;
-            }
-            if (higherNodeResponded) {
-                isElectionInProgress = false;
-                return;
-            }
-            currentLeaderId = nodeId;
-            isElectionInProgress = false;
-            higherNodeResponded = false;
-        }
-
-        broadcastCoordinator();
-    }
-
-    private void broadcastCoordinator() {
-        String payload = electionPayload("COORDINATOR", nodeId);
-        for (int peerNodeId : knownNodeIds()) {
-            if (peerNodeId != nodeId) {
-                networkClient.post(portForNode(peerNodeId), "/api/election", payload);
-            }
-        }
-    }
-
-    private List<Integer> higherNodeIds() {
-        List<Integer> result = new ArrayList<>();
-        for (int knownNodeId : knownNodeIds()) {
-            if (knownNodeId > nodeId) {
-                result.add(knownNodeId);
-            }
-        }
-        return result;
-    }
-
-    private List<Integer> knownNodeIds() {
-        List<Integer> nodeIds = new ArrayList<>();
-        for (int index = 0; index < peerPorts.size(); index++) {
-            nodeIds.add(index);
-        }
-        return nodeIds;
-    }
-
-    private int highestKnownNodeId() {
-        return knownNodeIds().stream()
-                .mapToInt(Integer::intValue)
-                .max()
-                .orElse(nodeId);
-    }
-
-    private int portForNode(int targetNodeId) {
-        if (targetNodeId < 0 || targetNodeId >= peerPorts.size()) {
-            throw new IllegalArgumentException("Unknown node ID: " + targetNodeId);
-        }
-        return peerPorts.get(targetNodeId);
-    }
-
-    private String electionPayload(String type, int senderId) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("type", type);
-        payload.put("sender_id", senderId);
-        return Json.stringify(payload);
-    }
+    // TODO (Pair D): background failure detector - poll
+    //                networkClient.getHealth(portOf(currentLeaderId)) on an
+    //                interval; after N consecutive failures, call
+    //                startElection(). Run this on its own thread from Node.java.
 }
