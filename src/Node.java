@@ -68,6 +68,7 @@ public class Node {
         server.setExecutor(pool);
 
         server.start();
+        election.startFailureDetector();
         System.out.println("Node " + nodeId + " running on port " + port
                 + " (peers: " + peerPorts + ", next-in-ring: " + nextPeerPort + ")");
 
