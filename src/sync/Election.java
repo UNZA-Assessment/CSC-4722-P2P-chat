@@ -24,6 +24,7 @@ public class Election {
 
     private int currentLeaderId;
     private volatile boolean isElectionInProgress = false;
+    private boolean higherNodeResponded = false;
 
     public Election(int nodeId, List<Integer> peerPorts, NetworkClient networkClient) {
         this.nodeId = nodeId;
@@ -136,6 +137,13 @@ public class Election {
         electionThread.setDaemon(true);
         electionThread.start();
     }
+
+    public synchronized void handleOkMessage(int senderId) {
+    if (senderId > nodeId && isElectionInProgress) {
+        higherNodeResponded = true;
+        System.out.println("Node " + nodeId + " received OK from higher Node " + senderId);
+    }
+}
 
     public void handleCoordinatorMessage(int newLeaderId) {
         this.currentLeaderId = newLeaderId;
