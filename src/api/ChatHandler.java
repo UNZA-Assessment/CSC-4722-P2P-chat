@@ -12,8 +12,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +26,6 @@ public class ChatHandler implements HttpHandler {
     private final MutualExclusion mutex;
     private final Election election;
     private final int nodeId;
-    private final List<Message> messageLog = Collections.synchronizedList(new ArrayList<>());
 
     public ChatHandler(Clock clock, MutualExclusion mutex, Election election, int nodeId) {
         this.clock = clock;
@@ -69,52 +66,40 @@ public class ChatHandler implements HttpHandler {
         Object parsed = Json.parse(body);
         Map<String, Object> payload = (Map<String, Object>) parsed;
 
-        int senderId = ((Number) payload.get("sender_id")).intValue();
-        String text = (String) payload.get("text");
-        int lamport = ((Number) payload.get("lamport")).intValue();
-
-        List<?> rawVector = (List<?>) payload.get("vector");
-        int[] vector = new int[rawVector.size()];
-        for (int i = 0; i < rawVector.size(); i++) {
-            vector[i] = ((Number) rawVector.get(i)).intValue();
-        }
-
-        // Update logical clock state upon receiving message
-        clock.updateOnReceive(lamport, vector);
-
-        // Store message in sorted log
-        synchronized (messageLog) {
-            messageLog.add(new Message(senderId, text, lamport, vector));
-            messageLog.sort((m1, m2) -> Integer.compare(m1.lamportTime, m2.lamportTime));
-        }
+        // TODO (Pair B): extract sender_id, text, lamport, vector from payload
+        // TODO (Pair B): clock.updateOnReceive(lamport, vector)
+        // TODO (Pair B): build a Message and insert into the sorted log
+        // TODO (Pair B): Log.event(nodeId, clock, "CHAT_RECV", ...) using the
+        //                shared logging format in PROTOCOL.md
 
         sendResponse(exchange, 200, "{\"status\":\"Message Received\"}");
     }
 
-    // --- Owned by Pair C (mutual exclusion) ---
+    // --- Owned by Pair D (mutual exclusion) ---
     private void handleToken(HttpExchange exchange) throws IOException {
-        String body = readBody(exchange);
+        String body = readBody(exchange); // TODO (Pair D): parse token_holder / scores payload
         mutex.receiveToken();
         sendResponse(exchange, 200, "{\"status\":\"Token Handled\"}");
     }
 
-    // --- Owned by Pair D (election) ---
+    // --- Owned by Pair C (election) ---
     @SuppressWarnings("unchecked")
     private void handleElection(HttpExchange exchange) throws IOException {
         String body = readBody(exchange);
         Map<String, Object> payload = (Map<String, Object>) Json.parse(body);
 
         String type = (String) payload.get("type");
-        int senderId = ((Number) payload.get("sender_id")).intValue();
-
-        // Dispatch election handling to a background thread so the HTTP handler returns immediately
-        new Thread(() -> {
-            if ("ELECTION".equals(type)) {
-                election.handleElectionMessage(senderId);
-            } else if ("COORDINATOR".equals(type)) {
-                election.handleCoordinatorMessage(senderId);
-            }
-        }).start();
+        int senderId = ((Double) payload.get("sender_id")).intValue();
+        if ("ELECTION".equals(type)) {
+            election.handleElectionMessage(senderId);
+        } else if ("OK".equals(type)) {
+            election.handleOkMessage(senderId);
+        } else if ("COORDINATOR".equals(type)) {
+            election.handleCoordinatorMessage(senderId);
+        } else {
+            sendResponse(exchange, 400, "{\"error\":\"Unknown election message type\"}");
+            return;
+        }
 
         sendResponse(exchange, 200, "{\"status\":\"OK\"}");
     }

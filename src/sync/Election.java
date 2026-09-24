@@ -1,5 +1,6 @@
 package sync;
 
+import api.Json;
 import api.NetworkClient;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public class Election {
 
     public Election(int nodeId, List<Integer> peerPorts, NetworkClient networkClient) {
         this.nodeId = nodeId;
-        this.peerPorts = peerPorts;
+        this.peerPorts = new ArrayList<>(peerPorts);
         this.networkClient = networkClient;
         this.currentLeaderId = maxKnownNodeId();
     }
@@ -116,6 +117,7 @@ public class Election {
         System.out.println("Node " + nodeId + " is now leader.");
     }
 
+    /** Replies immediately, then starts this node's election asynchronously. */
     public void handleElectionMessage(int senderId) {
         int senderPort = portOf(senderId);
         if (senderPort >= 0) {
