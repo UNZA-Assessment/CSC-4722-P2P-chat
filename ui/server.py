@@ -23,6 +23,13 @@ def load_peer_hosts():
 PEER_HOSTS = load_peer_hosts()
 
 
+def default_vector(node_id):
+    vector = [0] * max(len(PEER_HOSTS), 1)
+    if 0 <= node_id < len(vector):
+        vector[node_id] = 1
+    return vector
+
+
 def node_url(node_id, path):
     port = BASE_PORT + node_id
     host = PEER_HOSTS.get(port)
@@ -37,18 +44,18 @@ def discover_nodes():
         node_id = port - BASE_PORT
         if node_id < 0:
             continue
-        healthy = False
         try:
             req = urllib.request.Request(node_url(node_id, '/api/health'), method='GET')
             with urllib.request.urlopen(req, timeout=1.2) as response:
-                healthy = response.status == 200
+                if response.status != 200:
+                    continue
         except Exception:
-            healthy = False
+            continue
         nodes.append({
             'id': node_id,
             'port': port,
-            'healthy': healthy,
-            'enabled': healthy,
+            'healthy': True,
+            'enabled': True,
         })
     return nodes
 
@@ -209,7 +216,8 @@ class UIHandler(SimpleHTTPRequestHandler):
                 'sender_id': node_id,
                 'text': data.get('text', ''),
                 'lamport': int(data.get('lamport', 1)),
-                'vector': data.get('vector', [1, 0, 0]),
+                'vector': data.get('vector', default_vector(node_id)),
+                'relay': bool(data.get('relay', False)),
             }
             status, result = proxy_post(node_url(node_id, '/api/chat'), payload)
             send_json(self, {'status': status, 'result': result})

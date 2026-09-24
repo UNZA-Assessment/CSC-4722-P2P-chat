@@ -30,12 +30,21 @@ public class ChatHandler implements HttpHandler {
     private final MutualExclusion mutex;
     private final Election election;
     private final int nodeId;
+    private final NetworkClient networkClient;
+    private final List<Integer> peerPorts;
 
     public ChatHandler(Clock clock, MutualExclusion mutex, Election election, int nodeId) {
+        this(clock, mutex, election, nodeId, null, new ArrayList<>());
+    }
+
+    public ChatHandler(Clock clock, MutualExclusion mutex, Election election, int nodeId,
+                       NetworkClient networkClient, List<Integer> peerPorts) {
         this.clock = clock;
         this.mutex = mutex;
         this.election = election;
         this.nodeId = nodeId;
+        this.networkClient = networkClient;
+        this.peerPorts = new ArrayList<>(peerPorts);
     }
 
     @Override
@@ -100,6 +109,7 @@ public class ChatHandler implements HttpHandler {
         int senderId = ((Number) payload.get("sender_id")).intValue();
         String text = (String) payload.get("text");
         int lamport = ((Number) payload.get("lamport")).intValue();
+        boolean relay = Boolean.TRUE.equals(payload.get("relay"));
 
         List<?> rawVector = (List<?>) payload.get("vector");
         int[] vector = new int[rawVector == null ? 0 : rawVector.size()];
@@ -119,7 +129,28 @@ public class ChatHandler implements HttpHandler {
 
         Log.event(nodeId, clock, "CHAT_RECV", "from=" + senderId + " text=\"" + text.replace("\"", "\\\"") + "\"");
 
+        if (!relay && networkClient != null) {
+            String forwarded = Json.stringify(Map.of(
+                    "sender_id", senderId,
+                    "text", text,
+                    "lamport", lamport,
+                    "vector", vector,
+                    "relay", true));
+            for (int peerPort : peerPorts) {
+                if (peerPort != nodePort()) {
+                    networkClient.post(peerPort, "/api/chat", forwarded);
+                }
+            }
+        }
+
         sendResponse(exchange, 200, "{\"status\":\"Message Received\"}");
+    }
+
+    private int nodePort() {
+        if (nodeId >= 0 && nodeId < peerPorts.size()) {
+            return peerPorts.get(nodeId);
+        }
+        return -1;
     }
 
     // --- Owned by Pair D (mutual exclusion) ---
