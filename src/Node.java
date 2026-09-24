@@ -8,7 +8,9 @@ import sync.MutualExclusion;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +57,8 @@ public class Node {
         }
         int nextPeerPort = peerPorts.get((nodeId + 1) % totalNodes);
 
-        NetworkClient networkClient = new NetworkClient(nodeId);
+        Map<Integer, String> peerHosts = parsePeerHosts(System.getenv("P2P_PEERS"));
+        NetworkClient networkClient = new NetworkClient(nodeId, peerHosts);
         Clock clock = new Clock(nodeId, totalNodes);
         MutualExclusion mutex = new MutualExclusion(nodeId, nextPeerPort, nodeId == 0, networkClient);
         Election election = new Election(nodeId, peerPorts, networkClient);
@@ -99,5 +102,19 @@ public class Node {
                 Thread.currentThread().interrupt();
             }
         }));
+    }
+
+    private static Map<Integer, String> parsePeerHosts(String value) {
+        Map<Integer, String> peerHosts = new HashMap<>();
+        if (value == null || value.isBlank()) {
+            return peerHosts;
+        }
+        for (String entry : value.split(",")) {
+            String[] parts = entry.trim().split("=", 2);
+            if (parts.length == 2 && !parts[1].isBlank()) {
+                peerHosts.put(Integer.parseInt(parts[0].trim()), parts[1].trim());
+            }
+        }
+        return peerHosts;
     }
 }

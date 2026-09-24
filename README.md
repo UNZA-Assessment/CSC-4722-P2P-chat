@@ -68,6 +68,50 @@ java -cp out Node 0 8000 3
 ./kill_all.sh            # stops everything cleanly
 ```
 
+## Running nodes on different laptops
+
+Put every laptop on the same trusted LAN, give each laptop a fixed/reachable
+LAN address, and allow the node ports through its firewall. Use the same node
+count, base port, and complete `P2P_PEERS` mapping on every laptop. The mapping
+keys are node ports, not node IDs. The dashboard displays only peers listed in
+this mapping; it does not scan or add localhost nodes:
+
+```bash
+export P2P_PEERS='8000=192.168.1.10,8001=192.168.1.11,8002=192.168.1.12'
+```
+
+Build the project on each laptop, then launch only that laptop's node. The
+third argument selects the node ID while the first argument remains the total
+cluster size:
+
+```bash
+# Laptop 192.168.1.10
+./start_all.sh 3 8000 0
+
+# Laptop 192.168.1.11
+./start_all.sh 3 8000 1
+
+# Laptop 192.168.1.12
+./start_all.sh 3 8000 2
+```
+
+Verify from each laptop that every peer is reachable:
+
+```bash
+curl http://192.168.1.10:8000/api/health
+curl http://192.168.1.11:8001/api/health
+curl http://192.168.1.12:8002/api/health
+```
+
+To run the dashboard on one laptop, use the same mapping and cluster size:
+
+```bash
+P2P_PEERS="$P2P_PEERS" P2P_BASE_PORT=8000 python3 ui/server.py
+```
+
+Open `http://<dashboard-laptop-ip>:8080/` from another laptop. Do not expose
+these unauthenticated development endpoints to the public internet.
+
 ## Smoke test (run after every merge to main)
 
 ```bash

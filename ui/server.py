@@ -8,17 +8,38 @@ import urllib.request
 ROOT = os.path.dirname(__file__)
 HOST = '0.0.0.0'
 PORT = 8080
-BASE_PORT = 8000
-MAX_NODE_ID = 9
+BASE_PORT = int(os.environ.get('P2P_BASE_PORT', '8000'))
+
+
+def load_peer_hosts():
+    hosts = {}
+    for entry in os.environ.get('P2P_PEERS', '').split(','):
+        parts = entry.strip().split('=', 1)
+        if len(parts) == 2 and parts[1].strip():
+            hosts[int(parts[0].strip())] = parts[1].strip()
+    return hosts
+
+
+PEER_HOSTS = load_peer_hosts()
+
+
+def node_url(node_id, path):
+    port = BASE_PORT + node_id
+    host = PEER_HOSTS.get(port)
+    if not host:
+        raise ValueError(f'Missing P2P_PEERS entry for port {port}')
+    return f'http://{host}:{port}{path}'
 
 
 def discover_nodes():
     nodes = []
-    for node_id in range(MAX_NODE_ID + 1):
-        port = BASE_PORT + node_id
+    for port in sorted(PEER_HOSTS):
+        node_id = port - BASE_PORT
+        if node_id < 0:
+            continue
         healthy = False
         try:
-            req = urllib.request.Request(f'http://localhost:{port}/api/health', method='GET')
+            req = urllib.request.Request(node_url(node_id, '/api/health'), method='GET')
             with urllib.request.urlopen(req, timeout=1.2) as response:
                 healthy = response.status == 200
         except Exception:
@@ -78,9 +99,11 @@ def proxy_post(target_url, payload):
 def summarize_cluster_state():
     all_states = []
     aggregated_scores = {}
-    for node_id in range(MAX_NODE_ID + 1):
-        port = BASE_PORT + node_id
-        state = fetch_json(f'http://localhost:{port}/api/state', timeout=1.0)
+    for port in sorted(PEER_HOSTS):
+        node_id = port - BASE_PORT
+        if node_id < 0:
+            continue
+        state = fetch_json(node_url(node_id, '/api/state'), timeout=1.0)
         if not state:
             continue
         all_states.append(state)
@@ -136,14 +159,13 @@ class UIHandler(SimpleHTTPRequestHandler):
 
         if path == '/api/health':
             node_id = int(query.get('nodeId', ['0'])[0])
-            port = BASE_PORT + node_id
             try:
-                req = urllib.request.Request(f'http://localhost:{port}/api/health', method='GET')
+                req = urllib.request.Request(node_url(node_id, '/api/health'), method='GET')
                 with urllib.request.urlopen(req, timeout=1.5) as response:
-                    send_json(self, {'nodeId': node_id, 'port': port, 'healthy': response.status == 200})
+                    send_json(self, {'nodeId': node_id, 'port': BASE_PORT + node_id, 'healthy': response.status == 200})
                     return
             except Exception:
-                send_json(self, {'nodeId': node_id, 'port': port, 'healthy': False}, status=503)
+                send_json(self, {'nodeId': node_id, 'port': BASE_PORT + node_id, 'healthy': False}, status=503)
                 return
 
         if path == '/':
@@ -165,7 +187,7 @@ class UIHandler(SimpleHTTPRequestHandler):
                 'lamport': int(data.get('lamport', 1)),
                 'vector': data.get('vector', [1, 0, 0]),
             }
-            status, result = proxy_post(f'http://localhost:{BASE_PORT + node_id}/api/chat', payload)
+            status, result = proxy_post(node_url(node_id, '/api/chat'), payload)
             send_json(self, {'status': status, 'result': result})
             return
 
@@ -174,7 +196,7 @@ class UIHandler(SimpleHTTPRequestHandler):
             node_id = int(data.get('nodeId', 0))
             msg_type = data.get('type', 'ELECTION')
             payload = {'type': msg_type, 'sender_id': node_id}
-            status, result = proxy_post(f'http://localhost:{BASE_PORT + node_id}/api/election', payload)
+            status, result = proxy_post(node_url(node_id, '/api/election'), payload)
             send_json(self, {'status': status, 'result': result})
             return
 
@@ -185,7 +207,7 @@ class UIHandler(SimpleHTTPRequestHandler):
                 'token_holder': data.get('token_holder', node_id),
                 'scores': data.get('scores', {}),
             }
-            status, result = proxy_post(f'http://localhost:{BASE_PORT + node_id}/api/token', payload)
+            status, result = proxy_post(node_url(node_id, '/api/token'), payload)
             send_json(self, {'status': status, 'result': result})
             return
 
