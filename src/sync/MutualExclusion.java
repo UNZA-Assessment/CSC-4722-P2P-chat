@@ -1,6 +1,10 @@
 package sync;
 
 import api.NetworkClient;
+import api.Json;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Owned by Pair C. TODO items are the assignment's Mutual Exclusion &
@@ -23,6 +27,8 @@ public class MutualExclusion {
     private boolean wantsToUpdateScore = false;
     private boolean hasToken = false;
 
+    private final Map<String, Integer> scores = new LinkedHashMap<>();
+
     public MutualExclusion(int nodeId, int nextPeerPort, boolean startsWithToken, NetworkClient networkClient) {
         this.nodeId = nodeId;
         this.nextPeerPort = nextPeerPort;
@@ -30,29 +36,50 @@ public class MutualExclusion {
         this.networkClient = networkClient;
     }
 
-    public synchronized void requestCriticalSection() {
-        this.wantsToUpdateScore = true;
+    public void requestCriticalSection() {
+        boolean shouldPassToken;
+        synchronized (this) {
+            wantsToUpdateScore = true;
+            shouldPassToken = hasToken;
+            if (shouldPassToken) {
+                wantsToUpdateScore = false;
+                // Execute the critical section while holding the token.
+            }
+        }
+
+        if (shouldPassToken) {
+            passToken();
+        }
     }
 
-    public synchronized void receiveToken() {
-        hasToken = true;
-        if (wantsToUpdateScore) {
-            // TODO (Pair C): execute critical section - update shared scoreboard.
-            // Log entry/exit timestamps here; this is your proof of mutual
-            // exclusion for the report.
-            wantsToUpdateScore = false;
+    public void receiveToken() {
+        synchronized (this) {
+            this.hasToken = true;
+
+            if (wantsToUpdateScore) {
+                // Execute the critical section while holding the token.
+                wantsToUpdateScore = false;
+            }
         }
+
         passToken();
-    }
+}
 
     private void passToken() {
-        // TODO (Pair C): build the {"token_holder":..,"scores":{...}} payload
-        //                with api.Json.stringify(...)
-        // TODO (Pair C): networkClient.post(nextPeerPort, "/api/token", payload)
-        //                - this is async, do not block here
-        // TODO (Pair C): before sending, consider probing networkClient
-        //                .getHealth(nextPeerPort) and walking forward past
-        //                dead peers (ring repair) - see the assignment brief
-        // TODO (Pair C): set hasToken = false once the send is issued
+        String payload;
+        synchronized (this) {
+            if (!hasToken) {
+                return;
+            }
+
+            Map<String, Object> token = new LinkedHashMap<>();
+            token.put("token_holder", nodeId);
+            token.put("scores", new LinkedHashMap<>(scores));
+            payload = Json.stringify(token);
+            hasToken = false;
+        }
+
+        // post() is asynchronous; do not hold this object's monitor across it.
+        networkClient.post(nextPeerPort, "/api/token", payload);
     }
 }
