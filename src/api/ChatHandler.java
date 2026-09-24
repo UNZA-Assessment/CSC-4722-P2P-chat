@@ -59,6 +59,8 @@ public class ChatHandler implements HttpHandler {
                                 + ",\"tokenHolderId\":" + tokenHolder
                                 + ",\"electionInProgress\":" + election.isElectionInProgress()
                                 + ",\"scores\":" + scores + "}");
+            } else if ("GET".equals(method) && "/api/messages".equals(path)) {
+                sendResponse(exchange, 200, Json.stringify(messagePayload()));
             } else if ("GET".equals(method) && "/api/health".equals(path)) {
                 sendResponse(exchange, 200, "{\"status\":\"ALIVE\"}");
             } else {
@@ -70,6 +72,22 @@ public class ChatHandler implements HttpHandler {
             e.printStackTrace();
             sendResponse(exchange, 500, "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
         }
+    }
+
+    private List<Map<String, Object>> messagePayload() {
+        List<Map<String, Object>> messages = new ArrayList<>();
+        synchronized (MESSAGE_LOG) {
+            for (Message message : MESSAGE_LOG) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("senderId", message.senderId);
+                payload.put("text", message.text);
+                payload.put("lamport", message.lamportTime);
+                payload.put("vector", message.vectorClock);
+                payload.put("receivedAtNanos", message.receivedAtNanos);
+                messages.add(payload);
+            }
+        }
+        return messages;
     }
 
     // --- Owned by Pair B (clocks / message log) ---
