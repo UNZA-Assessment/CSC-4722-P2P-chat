@@ -143,6 +143,26 @@ def summarize_cluster_state():
     }
 
 
+def summarize_cluster_messages():
+    messages = {}
+    for port in sorted(PEER_HOSTS):
+        node_id = port - BASE_PORT
+        if node_id < 0:
+            continue
+        for message in fetch_json(node_url(node_id, '/api/messages'), timeout=1.0) or []:
+            key = (
+                message.get('senderId'),
+                message.get('lamport'),
+                message.get('text'),
+            )
+            messages[key] = message
+    return sorted(messages.values(), key=lambda message: (
+        message.get('lamport', 0),
+        message.get('senderId', 0),
+        message.get('receivedAtNanos', 0),
+    ))
+
+
 class UIHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -155,6 +175,10 @@ class UIHandler(SimpleHTTPRequestHandler):
 
         if path == '/api/cluster-state':
             send_json(self, summarize_cluster_state())
+            return
+
+        if path == '/api/messages':
+            send_json(self, {'messages': summarize_cluster_messages()})
             return
 
         if path == '/api/health':

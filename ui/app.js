@@ -222,6 +222,21 @@ async function refreshSystemState() {
   updateMeta();
 }
 
+async function refreshMessages() {
+  try {
+    const data = await fetchJson('/api/messages');
+    state.messages = (data.messages || []).map((message) => ({
+      nodeId: message.senderId,
+      text: message.text,
+      when: 'live',
+      mine: false,
+    }));
+    renderMessages();
+  } catch (error) {
+    console.error('Failed to refresh messages', error);
+  }
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -265,6 +280,7 @@ async function refreshCluster() {
       nodeSelect.value = String(state.selectedNode);
     }
     await refreshSystemState();
+    await refreshMessages();
   } catch (error) {
     console.error(error);
     state.nodes = [];
