@@ -13,7 +13,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,14 +105,19 @@ public class ChatHandler implements HttpHandler {
     }
 
     // --- Owned by Pair D (mutual exclusion) ---
+    @SuppressWarnings("unchecked")
     private void handleToken(HttpExchange exchange) throws IOException {
         String body = readBody(exchange);
-        Map<String, Object> payload = (Map<String, Object>) Json.parse(body);
+        Object parsed = Json.parse(body);
+        if (!(parsed instanceof Map)) {
+            sendResponse(exchange, 400, "{\"error\":\"Token payload must be an object\"}");
+            return;
+        }
+        Map<String, Object> payload = (Map<String, Object>) parsed;
         Map<String, Integer> incomingScores = new HashMap<>();
 
         Object scores = payload.get("scores");
         if (scores instanceof Map) {
-            @SuppressWarnings("unchecked")
             Map<String, Object> scoreMap = (Map<String, Object>) scores;
             for (Map.Entry<String, Object> entry : scoreMap.entrySet()) {
                 Object score = entry.getValue();

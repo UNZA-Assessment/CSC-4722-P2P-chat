@@ -27,13 +27,11 @@ public class MutualExclusion {
     private final Map<String, Integer> scoreboard = new HashMap<>();
 
     private boolean wantsToUpdateScore = false;
-    private boolean hasToken = false;
     private volatile int currentTokenHolder = -1;
 
     public MutualExclusion(int nodeId, int nextPeerPort, boolean startsWithToken, NetworkClient networkClient) {
         this.nodeId = nodeId;
         this.nextPeerPort = nextPeerPort;
-        this.hasToken = startsWithToken;
         this.currentTokenHolder = startsWithToken ? nodeId : -1;
         this.networkClient = networkClient;
     }
@@ -49,12 +47,12 @@ public class MutualExclusion {
     public void receiveToken(Map<String, Integer> incomingScores) {
         Map<String, Integer> scoresToForward;
         synchronized (this) {
-            hasToken = true;
             currentTokenHolder = nodeId;
 
             if (incomingScores != null) {
-                scoreboard.clear();
-                scoreboard.putAll(incomingScores);
+                for (Map.Entry<String, Integer> entry : incomingScores.entrySet()) {
+                    scoreboard.merge(entry.getKey(), entry.getValue(), Math::max);
+                }
             }
 
             System.out.println("Node " + nodeId + " received the token.");
@@ -66,7 +64,6 @@ public class MutualExclusion {
                 wantsToUpdateScore = false;
             }
 
-            hasToken = false;
             currentTokenHolder = -1;
             scoresToForward = new HashMap<>(scoreboard);
         }
