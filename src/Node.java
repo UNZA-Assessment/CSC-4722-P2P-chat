@@ -7,6 +7,7 @@ import sync.ElectionFailureHandler;
 import sync.MutualExclusion;
 
 import java.net.InetSocketAddress;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,6 +59,8 @@ public class Node {
         int nextPeerPort = peerPorts.get((nodeId + 1) % totalNodes);
 
         Map<Integer, String> peerHosts = parsePeerHosts(System.getenv("P2P_PEERS"));
+        validateUniquePeerHosts(peerHosts, peerPorts);
+        String hostName = InetAddress.getLocalHost().getHostName();
         NetworkClient networkClient = new NetworkClient(nodeId, peerHosts);
         Clock clock = new Clock(nodeId, totalNodes);
         MutualExclusion mutex = new MutualExclusion(nodeId, nextPeerPort, nodeId == 0, networkClient);
@@ -66,7 +69,7 @@ public class Node {
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/api", new ChatHandler(clock, mutex, election, nodeId,
-            networkClient, peerPorts));
+            networkClient, peerPorts, hostName, port));
 
         // Fixed pool instead of the single-threaded default executor.
         // Size is generous for a course project; tune if needed.
@@ -117,5 +120,23 @@ public class Node {
             }
         }
         return peerHosts;
+    }
+
+    private static void validateUniquePeerHosts(Map<Integer, String> peerHosts, List<Integer> peerPorts) {
+        if (peerHosts.isEmpty()) {
+            return;
+        }
+        Map<String, Integer> seen = new HashMap<>();
+        for (int port : peerPorts) {
+            String host = peerHosts.get(port);
+            if (host == null || host.isBlank()) {
+                throw new IllegalArgumentException("Missing P2P_PEERS entry for port " + port);
+            }
+            Integer previousPort = seen.put(host, port);
+            if (previousPort != null) {
+                throw new IllegalArgumentException("One IP cannot host multiple nodes: "
+                        + host + " is assigned to ports " + previousPort + " and " + port);
+            }
+        }
     }
 }

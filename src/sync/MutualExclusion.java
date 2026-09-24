@@ -27,17 +27,28 @@ public class MutualExclusion {
     private final Map<String, Integer> scoreboard = new HashMap<>();
 
     private boolean wantsToUpdateScore = false;
+    private boolean hasToken;
     private volatile int currentTokenHolder = -1;
 
     public MutualExclusion(int nodeId, int nextPeerPort, boolean startsWithToken, NetworkClient networkClient) {
         this.nodeId = nodeId;
         this.nextPeerPort = nextPeerPort;
+        this.hasToken = startsWithToken;
         this.currentTokenHolder = startsWithToken ? nodeId : -1;
         this.networkClient = networkClient;
     }
 
-    public synchronized void requestCriticalSection() {
-        this.wantsToUpdateScore = true;
+    public void requestCriticalSection() {
+        Map<String, Integer> scoresToForward = null;
+        synchronized (this) {
+            wantsToUpdateScore = true;
+            if (hasToken) {
+                scoresToForward = consumeTokenLocked();
+            }
+        }
+        if (scoresToForward != null) {
+            passToken(scoresToForward);
+        }
     }
 
     public void receiveToken() {
@@ -47,6 +58,7 @@ public class MutualExclusion {
     public void receiveToken(Map<String, Integer> incomingScores) {
         Map<String, Integer> scoresToForward;
         synchronized (this) {
+            hasToken = true;
             currentTokenHolder = nodeId;
 
             if (incomingScores != null) {
@@ -56,16 +68,7 @@ public class MutualExclusion {
             }
 
             System.out.println("Node " + nodeId + " received the token.");
-
-            if (wantsToUpdateScore) {
-                System.out.println("Node " + nodeId + " ENTERING critical section.");
-                scoreboard.merge("node_" + nodeId, 1, Integer::sum);
-                System.out.println("Node " + nodeId + " EXITING critical section.");
-                wantsToUpdateScore = false;
-            }
-
-            currentTokenHolder = -1;
-            scoresToForward = new HashMap<>(scoreboard);
+            scoresToForward = consumeTokenLocked();
         }
 
         passToken(scoresToForward);
@@ -87,6 +90,18 @@ public class MutualExclusion {
         System.out.println("Node " + nodeId + " passing token to port " + nextPeerPort);
 
         networkClient.post(nextPeerPort, "/api/token", Json.stringify(payload));
+    }
+
+    private Map<String, Integer> consumeTokenLocked() {
+        if (wantsToUpdateScore) {
+            System.out.println("Node " + nodeId + " ENTERING critical section.");
+            scoreboard.merge("node_" + nodeId, 1, Integer::sum);
+            System.out.println("Node " + nodeId + " EXITING critical section.");
+            wantsToUpdateScore = false;
+        }
+        hasToken = false;
+        currentTokenHolder = -1;
+        return new HashMap<>(scoreboard);
     }
 }
 
