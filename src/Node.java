@@ -3,11 +3,14 @@ import api.ChatHandler;
 import api.NetworkClient;
 import models.Clock;
 import sync.Election;
+import sync.ElectionFailureHandler;
 import sync.MutualExclusion;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -23,8 +26,13 @@ import java.util.concurrent.TimeUnit;
  *    HTTP call - e.g. token forwarding or election OK replies.)
  *  - a shutdown hook stops the server and pool cleanly, so kill_all.sh
  *    and the leader-failure demo don't leave sockets in TIME_WAIT.
+ *  - a background health poller watches the current leader and calls
+ *    election.startElection() after repeated missed health checks.
  */
 public class Node {
+
+    private static final long POLL_INTERVAL_MS = 1000;
+    private static final int FAILURE_THRESHOLD = 3; // consecutive misses before triggering election
 
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
@@ -49,13 +57,16 @@ public class Node {
         }
         int nextPeerPort = peerPorts.get((nodeId + 1) % totalNodes);
 
-        NetworkClient networkClient = new NetworkClient(nodeId);
+        Map<Integer, String> peerHosts = parsePeerHosts(System.getenv("P2P_PEERS"));
+        NetworkClient networkClient = new NetworkClient(nodeId, peerHosts);
         Clock clock = new Clock(nodeId, totalNodes);
         MutualExclusion mutex = new MutualExclusion(nodeId, nextPeerPort, nodeId == 0, networkClient);
         Election election = new Election(nodeId, peerPorts, networkClient);
+        ElectionFailureHandler failureHandler = new ElectionFailureHandler(election, networkClient);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/api", new ChatHandler(clock, mutex, election, nodeId));
+        server.createContext("/api", new ChatHandler(clock, mutex, election, nodeId,
+            networkClient, peerPorts));
 
         // Fixed pool instead of the single-threaded default executor.
         // Size is generous for a course project; tune if needed.
@@ -66,8 +77,24 @@ public class Node {
         System.out.println("Node " + nodeId + " running on port " + port
                 + " (peers: " + peerPorts + ", next-in-ring: " + nextPeerPort + ")");
 
+        // The node uses a single leader-health monitor so that election
+        // detection and triggering are consistent across the process.
+        Thread healthPoller = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(POLL_INTERVAL_MS);
+                    failureHandler.checkLeaderHealth();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "health-poller-" + nodeId);
+        healthPoller.setDaemon(true);
+        healthPoller.start();
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Node " + nodeId + " shutting down...");
+            healthPoller.interrupt();
             server.stop(0);
             pool.shutdown();
             try {
@@ -76,5 +103,19 @@ public class Node {
                 Thread.currentThread().interrupt();
             }
         }));
+    }
+
+    private static Map<Integer, String> parsePeerHosts(String value) {
+        Map<Integer, String> peerHosts = new HashMap<>();
+        if (value == null || value.isBlank()) {
+            return peerHosts;
+        }
+        for (String entry : value.split(",")) {
+            String[] parts = entry.trim().split("=", 2);
+            if (parts.length == 2 && !parts[1].isBlank()) {
+                peerHosts.put(Integer.parseInt(parts[0].trim()), parts[1].trim());
+            }
+        }
+        return peerHosts;
     }
 }

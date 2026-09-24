@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>P2P Chat & Scoreboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CSC 4722</p>
+          <h1>P2P Distributed Chat & Scoreboard</h1>
+        </div>
+        <div class="status-pill" id="clusterStatus">Checking cluster…</div>
+      </header>
+
+      <main class="layout">
+        <aside class="panel left-panel">
+          <section>
+            <h2>Cluster</h2>
+            <div id="nodeList" class="node-list"></div>
+          </section>
+
+          <section class="controls">
+            <h2>Actions</h2>
+            <label for="nodeSelect">Selected node</label>
+            <select id="nodeSelect"></select>
+
+            <button id="healthBtn" class="primary">Refresh health</button>
+            <button id="electionBtn">Trigger election</button>
+            <button id="tokenBtn">Request token</button>
+          </section>
+        </aside>
+
+        <section class="panel main-panel">
+          <div class="meta-grid">
+            <div class="meta-card">
+              <span>Leader</span>
+              <strong id="leaderValue">Unknown</strong>
+            </div>
+            <div class="meta-card">
+              <span>Token holder</span>
+              <strong id="tokenValue">Unknown</strong>
+            </div>
+            <div class="meta-card">
+              <span>Active nodes</span>
+              <strong id="nodeCountValue">0</strong>
+            </div>
+          </div>
+
+          <div class="chat-box">
+            <div class="chat-header">
+              <h2>Chat room</h2>
+            </div>
+            <div id="chatMessages" class="chat-messages"></div>
+            <form id="chatForm" class="chat-form">
+              <input id="messageInput" type="text" maxlength="140" placeholder="Type a message..." />
+              <button type="submit" class="primary">Send</button>
+            </form>
+          </div>
+        </section>
+
+        <aside class="panel right-panel">
+          <section>
+            <h2>Scoreboard</h2>
+            <div id="scoreboard" class="scoreboard"></div>
+          </section>
+
+          <section class="mini-panel">
+            <h2>System summary</h2>
+            <ul id="systemSummary" class="summary-list"></ul>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

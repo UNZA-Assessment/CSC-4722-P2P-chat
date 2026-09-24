@@ -1,13 +1,18 @@
 package sync;
 
+import api.Json;
 import api.NetworkClient;
 import api.Json;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
- * Owned by Pair C. TODO items are the assignment's Mutual Exclusion &
+ * Owned by Pair D. TODO items are the assignment's Mutual Exclusion &
  * Token Ring requirement (25 marks).
  *
  * IMPORTANT bug in the original skeleton that this scaffold sets you up
@@ -23,16 +28,17 @@ public class MutualExclusion {
     private final int nodeId;
     private final int nextPeerPort;
     private final NetworkClient networkClient;
+    private final Map<String, Integer> scoreboard = new HashMap<>();
 
     private boolean wantsToUpdateScore = false;
-    private boolean hasToken = false;
+    private volatile int currentTokenHolder = -1;
 
     private final Map<String, Integer> scores = new LinkedHashMap<>();
 
     public MutualExclusion(int nodeId, int nextPeerPort, boolean startsWithToken, NetworkClient networkClient) {
         this.nodeId = nodeId;
         this.nextPeerPort = nextPeerPort;
-        this.hasToken = startsWithToken;
+        this.currentTokenHolder = startsWithToken ? nodeId : -1;
         this.networkClient = networkClient;
     }
 
@@ -83,3 +89,4 @@ public class MutualExclusion {
         networkClient.post(nextPeerPort, "/api/token", payload);
     }
 }
+

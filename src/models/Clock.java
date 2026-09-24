@@ -26,16 +26,15 @@ public class Clock {
 
     // Update clocks upon receiving a message
     public synchronized void updateOnReceive(int incomingLamport, int[] incomingVector) {
-        // TODO (Pair B): lamportTime = Math.max(lamportTime, incomingLamport) + 1
-        this.lamportTime = Math.max(this.lamportTime, incomingLamport) + 1;
+        lamportTime = Math.max(lamportTime, incomingLamport) + 1;
 
-        // TODO (Pair B): vectorClock[i] = Math.max(vectorClock[i], incomingVector[i]) for all i
-        for (int i = 0; i < vectorClock.length && i < incomingVector.length; i++) {
-            this.vectorClock[i] = Math.max(this.vectorClock[i], incomingVector[i]);
+        if (incomingVector != null) {
+            for (int i = 0; i < vectorClock.length; i++) {
+                vectorClock[i] = Math.max(vectorClock[i], incomingVector[i]);
+            }
         }
 
-        // TODO (Pair B): vectorClock[nodeId]++  -- do this ONCE, not also via tick()
-        this.vectorClock[nodeId]++;
+        vectorClock[nodeId]++;
     }
 
     public synchronized int getLamportTime() { return lamportTime; }
