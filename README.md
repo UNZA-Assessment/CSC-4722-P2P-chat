@@ -95,6 +95,15 @@ cluster size:
 ./start_all.sh 3 8000 2
 ```
 
+You can also use the single-node wrapper to avoid accidentally starting the
+whole cluster on one laptop:
+
+```bash
+./start_node.sh <NODE_ID> <TOTAL_NODES> <PORT_BASE>
+# example: this laptop runs only node 1 in a 10-node cluster
+./start_node.sh 1 10 8000
+```
+
 Verify from each laptop that every peer is reachable:
 
 ```bash

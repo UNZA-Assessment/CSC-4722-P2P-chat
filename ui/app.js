@@ -359,7 +359,8 @@ async function sendMessage(event) {
     nodeId,
     text,
     lamport: 1,
-    vector: [1, 0, 0],
+    vector: Array.from({ length: Math.max(state.nodes.length, 1) }, (_, index) => index === nodeId ? 1 : 0),
+    relay: false,
   };
 
   try {

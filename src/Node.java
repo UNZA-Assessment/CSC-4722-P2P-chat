@@ -65,7 +65,8 @@ public class Node {
         ElectionFailureHandler failureHandler = new ElectionFailureHandler(election, networkClient);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/api", new ChatHandler(clock, mutex, election, nodeId));
+        server.createContext("/api", new ChatHandler(clock, mutex, election, nodeId,
+            networkClient, peerPorts));
 
         // Fixed pool instead of the single-threaded default executor.
         // Size is generous for a course project; tune if needed.
