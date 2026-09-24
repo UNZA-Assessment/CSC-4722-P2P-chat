@@ -3,6 +3,7 @@ import api.ChatHandler;
 import api.NetworkClient;
 import models.Clock;
 import sync.Election;
+import sync.ElectionFailureHandler;
 import sync.MutualExclusion;
 
 import java.net.InetSocketAddress;
@@ -58,6 +59,7 @@ public class Node {
         Clock clock = new Clock(nodeId, totalNodes);
         MutualExclusion mutex = new MutualExclusion(nodeId, nextPeerPort, nodeId == 0, networkClient);
         Election election = new Election(nodeId, peerPorts, networkClient);
+        ElectionFailureHandler failureHandler = new ElectionFailureHandler(election, networkClient);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/api", new ChatHandler(clock, mutex, election, nodeId));
@@ -68,62 +70,16 @@ public class Node {
         server.setExecutor(pool);
 
         server.start();
-        election.startFailureDetector();
         System.out.println("Node " + nodeId + " running on port " + port
                 + " (peers: " + peerPorts + ", next-in-ring: " + nextPeerPort + ")");
 
-        // Background failure detector: watches the leader this node currently
-        // believes is in charge and calls election.startElection() after
-        // FAILURE_THRESHOLD consecutive missed health checks. This is
-        // deliberately simple infra plumbing - the correctness of what
-        // happens once startElection() is called is Pair D's algorithm,
-        // still marked TODO in Election.java as of this writing. Wiring
-        // this now means the poller is ready the moment that lands, rather
-        // than blocking on it.
+        // The node uses a single leader-health monitor so that election
+        // detection and triggering are consistent across the process.
         Thread healthPoller = new Thread(() -> {
-            int consecutiveFailures = 0;
-            int lastKnownLeaderId = -1;
-
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(POLL_INTERVAL_MS);
-
-                    int leaderId = election.getCurrentLeaderId();
-
-                    // Leader changed underneath us (e.g. a COORDINATOR
-                    // message arrived) - reset the counter so we don't
-                    // trigger on stale failure history against the old leader.
-                    if (leaderId != lastKnownLeaderId) {
-                        consecutiveFailures = 0;
-                        lastKnownLeaderId = leaderId;
-                    }
-
-                    // A node doesn't need to health-check itself.
-                    if (leaderId == nodeId) {
-                        continue;
-                    }
-
-                    int leaderPort = peerPorts.get(leaderId);
-                    boolean alive = networkClient.getHealth(leaderPort);
-
-                    if (alive) {
-                        consecutiveFailures = 0;
-                    } else {
-                        consecutiveFailures++;
-                        System.out.println("Node " + nodeId + " missed health check on leader "
-                                + leaderId + " (" + consecutiveFailures + "/" + FAILURE_THRESHOLD + ")");
-
-                        if (consecutiveFailures >= FAILURE_THRESHOLD) {
-                            System.out.println("Node " + nodeId + " declaring leader " + leaderId
-                                    + " dead, starting election");
-                            election.startElection();
-                            // Reset rather than break: if this election doesn't
-                            // resolve (e.g. still mid-implementation), we'll
-                            // retrigger after another FAILURE_THRESHOLD misses
-                            // instead of going silent for the rest of the run.
-                            consecutiveFailures = 0;
-                        }
-                    }
+                    failureHandler.checkLeaderHealth();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

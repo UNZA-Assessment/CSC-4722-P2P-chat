@@ -126,13 +126,6 @@ public class Election {
                     "{\"type\":\"OK\",\"sender_id\":" + nodeId + "}");
         }
 
-        synchronized (this) {
-            if (isElectionInProgress) {
-                return;
-            }
-            isElectionInProgress = true;
-        }
-
         Thread electionThread = new Thread(this::startElection, "election-" + nodeId);
         electionThread.setDaemon(true);
         electionThread.start();

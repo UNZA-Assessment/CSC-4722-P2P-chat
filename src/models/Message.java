@@ -1,11 +1,17 @@
 package models;
 
+import java.util.Comparator;
+
 /**
  * Owned by Pair B. Signature frozen in PROTOCOL.md - other pairs may
  * construct/read this class, so don't change the constructor or field
  * names without going through A1.
  */
-public class Message {
+public class Message implements Comparable<Message> {
+    public static final Comparator<Message> BY_TOTAL_ORDER = Comparator
+            .comparingInt((Message message) -> message.lamportTime)
+            .thenComparingInt(message -> message.senderId);
+
     public final int senderId;
     public final String text;
     public final int lamportTime;
@@ -16,11 +22,36 @@ public class Message {
         this.senderId = senderId;
         this.text = text;
         this.lamportTime = lamportTime;
-        this.vectorClock = vectorClock;
+        this.vectorClock = vectorClock == null ? new int[0] : vectorClock.clone();
         this.receivedAtNanos = System.nanoTime();
     }
 
-    // TODO (Pair B): total-order comparator: (lamportTime, senderId) ascending
-    // TODO (Pair B): causal helpers - happensBefore(Message other),
-    //                isConcurrentWith(Message other) using vectorClock
+    @Override
+    public int compareTo(Message other) {
+        return BY_TOTAL_ORDER.compare(this, other);
+    }
+
+    public boolean happensBefore(Message other) {
+        if (other == null || this.vectorClock.length != other.vectorClock.length) {
+            return false;
+        }
+
+        boolean hasStrictlyLess = false;
+        for (int i = 0; i < this.vectorClock.length; i++) {
+            if (this.vectorClock[i] > other.vectorClock[i]) {
+                return false;
+            }
+            if (this.vectorClock[i] < other.vectorClock[i]) {
+                hasStrictlyLess = true;
+            }
+        }
+        return hasStrictlyLess;
+    }
+
+    public boolean isConcurrentWith(Message other) {
+        if (other == null || this == other) {
+            return false;
+        }
+        return !this.happensBefore(other) && !other.happensBefore(this);
+    }
 }

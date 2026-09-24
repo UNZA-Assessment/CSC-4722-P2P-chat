@@ -31,6 +31,10 @@ public class ElectionFailureHandler {
 
         int leaderPort = election.getLeaderPort();
         if (leaderPort < 0) {
+            if (consecutiveFailures.incrementAndGet() >= FAILURE_THRESHOLD) {
+                consecutiveFailures.set(0);
+                election.startElection();
+            }
             return;
         }
 
