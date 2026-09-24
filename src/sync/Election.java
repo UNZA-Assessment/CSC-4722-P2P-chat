@@ -1,6 +1,5 @@
 package sync;
 
-import api.Json;
 import api.NetworkClient;
 
 import java.util.ArrayList;
@@ -24,8 +23,6 @@ public class Election {
 
     private int currentLeaderId;
     private volatile boolean isElectionInProgress = false;
-    private boolean higherNodeResponded = false;
-
     public Election(int nodeId, List<Integer> peerPorts, NetworkClient networkClient) {
         this.nodeId = nodeId;
         this.peerPorts = new ArrayList<>(peerPorts);
@@ -126,13 +123,6 @@ public class Election {
                     "{\"type\":\"OK\",\"sender_id\":" + nodeId + "}");
         }
 
-        synchronized (this) {
-            if (isElectionInProgress) {
-                return;
-            }
-            isElectionInProgress = true;
-        }
-
         Thread electionThread = new Thread(this::startElection, "election-" + nodeId);
         electionThread.setDaemon(true);
         electionThread.start();
@@ -140,7 +130,6 @@ public class Election {
 
     public synchronized void handleOkMessage(int senderId) {
     if (senderId > nodeId && isElectionInProgress) {
-        higherNodeResponded = true;
         System.out.println("Node " + nodeId + " received OK from higher Node " + senderId);
     }
 }

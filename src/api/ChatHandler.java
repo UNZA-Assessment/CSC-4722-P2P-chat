@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +23,8 @@ import java.util.Map;
  * dispatch without telling A1; other pairs' branches depend on this shape.
  */
 public class ChatHandler implements HttpHandler {
+
+    private static final List<Message> MESSAGE_LOG = new ArrayList<>();
 
     private final Clock clock;
     private final MutualExclusion mutex;
@@ -46,6 +50,15 @@ public class ChatHandler implements HttpHandler {
                 handleToken(exchange);
             } else if ("POST".equals(method) && "/api/election".equals(path)) {
                 handleElection(exchange);
+            } else if ("GET".equals(method) && "/api/state".equals(path)) {
+                int leaderId = election.getCurrentLeaderId();
+                int tokenHolder = mutex.getCurrentTokenHolder();
+                String scores = Json.stringify(mutex.getScoreboard());
+                sendResponse(exchange, 200,
+                        "{\"nodeId\":" + nodeId + ",\"leaderId\":" + leaderId
+                                + ",\"tokenHolderId\":" + tokenHolder
+                                + ",\"electionInProgress\":" + election.isElectionInProgress()
+                                + ",\"scores\":" + scores + "}");
             } else if ("GET".equals(method) && "/api/health".equals(path)) {
                 sendResponse(exchange, 200, "{\"status\":\"ALIVE\"}");
             } else {
@@ -66,19 +79,55 @@ public class ChatHandler implements HttpHandler {
         Object parsed = Json.parse(body);
         Map<String, Object> payload = (Map<String, Object>) parsed;
 
-        // TODO (Pair B): extract sender_id, text, lamport, vector from payload
-        // TODO (Pair B): clock.updateOnReceive(lamport, vector)
-        // TODO (Pair B): build a Message and insert into the sorted log
-        // TODO (Pair B): Log.event(nodeId, clock, "CHAT_RECV", ...) using the
-        //                shared logging format in PROTOCOL.md
+        int senderId = ((Number) payload.get("sender_id")).intValue();
+        String text = (String) payload.get("text");
+        int lamport = ((Number) payload.get("lamport")).intValue();
+
+        List<?> rawVector = (List<?>) payload.get("vector");
+        int[] vector = new int[rawVector == null ? 0 : rawVector.size()];
+        if (rawVector != null) {
+            for (int i = 0; i < rawVector.size(); i++) {
+                vector[i] = ((Number) rawVector.get(i)).intValue();
+            }
+        }
+
+        clock.updateOnReceive(lamport, vector);
+
+        Message message = new Message(senderId, text, lamport, vector);
+        synchronized (MESSAGE_LOG) {
+            MESSAGE_LOG.add(message);
+            MESSAGE_LOG.sort(Message.BY_TOTAL_ORDER);
+        }
+
+        Log.event(nodeId, clock, "CHAT_RECV", "from=" + senderId + " text=\"" + text.replace("\"", "\\\"") + "\"");
 
         sendResponse(exchange, 200, "{\"status\":\"Message Received\"}");
     }
 
     // --- Owned by Pair D (mutual exclusion) ---
+    @SuppressWarnings("unchecked")
     private void handleToken(HttpExchange exchange) throws IOException {
-        String body = readBody(exchange); // TODO (Pair D): parse token_holder / scores payload
-        mutex.receiveToken();
+        String body = readBody(exchange);
+        Object parsed = Json.parse(body);
+        if (!(parsed instanceof Map)) {
+            sendResponse(exchange, 400, "{\"error\":\"Token payload must be an object\"}");
+            return;
+        }
+        Map<String, Object> payload = (Map<String, Object>) parsed;
+        Map<String, Integer> incomingScores = new HashMap<>();
+
+        Object scores = payload.get("scores");
+        if (scores instanceof Map) {
+            Map<String, Object> scoreMap = (Map<String, Object>) scores;
+            for (Map.Entry<String, Object> entry : scoreMap.entrySet()) {
+                Object score = entry.getValue();
+                if (score instanceof Number) {
+                    incomingScores.put(entry.getKey(), ((Number) score).intValue());
+                }
+            }
+        }
+
+        mutex.receiveToken(incomingScores);
         sendResponse(exchange, 200, "{\"status\":\"Token Handled\"}");
     }
 

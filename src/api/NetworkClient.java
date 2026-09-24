@@ -5,6 +5,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -24,18 +26,32 @@ public class NetworkClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofMillis(800);
 
     private final int selfNodeId;
+    private final Map<Integer, String> peerHosts;
     private final HttpClient client;
 
     public NetworkClient(int selfNodeId) {
+        this(selfNodeId, new HashMap<>());
+    }
+
+    public NetworkClient(int selfNodeId, Map<Integer, String> peerHosts) {
         this.selfNodeId = selfNodeId;
+        this.peerHosts = new HashMap<>(peerHosts);
         this.client = HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
                 .build();
     }
 
+    private String hostFor(int port) {
+        String host = peerHosts.get(port);
+        if (host == null || host.isBlank()) {
+            throw new IllegalStateException("Missing P2P_PEERS entry for port " + port);
+        }
+        return host;
+    }
+
     public CompletableFuture<Integer> post(int port, String path, String jsonBody) {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + path))
+                .uri(URI.create("http://" + hostFor(port) + ":" + port + path))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
@@ -58,7 +74,7 @@ public class NetworkClient {
     public boolean getHealth(int port) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:" + port + "/api/health"))
+                    .uri(URI.create("http://" + hostFor(port) + ":" + port + "/api/health"))
                     .timeout(REQUEST_TIMEOUT)
                     .GET()
                     .build();
