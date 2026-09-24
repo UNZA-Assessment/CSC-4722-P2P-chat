@@ -30,19 +30,24 @@ public class ChatHandler implements HttpHandler {
     private final MutualExclusion mutex;
     private final Election election;
     private final int nodeId;
+    private final String hostName;
+    private final int port;
     private final NetworkClient networkClient;
     private final List<Integer> peerPorts;
 
     public ChatHandler(Clock clock, MutualExclusion mutex, Election election, int nodeId) {
-        this(clock, mutex, election, nodeId, null, new ArrayList<>());
+        this(clock, mutex, election, nodeId, null, new ArrayList<>(), "unknown", -1);
     }
 
     public ChatHandler(Clock clock, MutualExclusion mutex, Election election, int nodeId,
-                       NetworkClient networkClient, List<Integer> peerPorts) {
+                       NetworkClient networkClient, List<Integer> peerPorts,
+                       String hostName, int port) {
         this.clock = clock;
         this.mutex = mutex;
         this.election = election;
         this.nodeId = nodeId;
+        this.hostName = hostName;
+        this.port = port;
         this.networkClient = networkClient;
         this.peerPorts = new ArrayList<>(peerPorts);
     }
@@ -57,6 +62,9 @@ public class ChatHandler implements HttpHandler {
                 handleChat(exchange);
             } else if ("POST".equals(method) && "/api/token".equals(path)) {
                 handleToken(exchange);
+            } else if ("POST".equals(method) && "/api/token/request".equals(path)) {
+                mutex.requestCriticalSection();
+                sendResponse(exchange, 200, "{\"status\":\"Token Requested\"}");
             } else if ("POST".equals(method) && "/api/election".equals(path)) {
                 handleElection(exchange);
             } else if ("GET".equals(method) && "/api/state".equals(path)) {
@@ -68,6 +76,10 @@ public class ChatHandler implements HttpHandler {
                                 + ",\"tokenHolderId\":" + tokenHolder
                                 + ",\"electionInProgress\":" + election.isElectionInProgress()
                                 + ",\"scores\":" + scores + "}");
+                        } else if ("GET".equals(method) && "/api/info".equals(path)) {
+                        sendResponse(exchange, 200, "{\"nodeId\":" + nodeId
+                            + ",\"hostname\":\"" + escapeJson(hostName)
+                            + "\",\"port\":" + port + "}");
             } else if ("GET".equals(method) && "/api/messages".equals(path)) {
                 sendResponse(exchange, 200, Json.stringify(messagePayload()));
             } else if ("GET".equals(method) && "/api/health".equals(path)) {
@@ -138,7 +150,12 @@ public class ChatHandler implements HttpHandler {
                     "relay", true));
             for (int peerPort : peerPorts) {
                 if (peerPort != nodePort()) {
-                    networkClient.post(peerPort, "/api/chat", forwarded);
+                    try {
+                        networkClient.post(peerPort, "/api/chat", forwarded);
+                    } catch (IllegalStateException error) {
+                        System.out.println("[" + nodeId + "] Skipping chat relay to port "
+                                + peerPort + ": " + error.getMessage());
+                    }
                 }
             }
         }

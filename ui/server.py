@@ -3,6 +3,7 @@ import json
 import os
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from urllib.error import HTTPError
 import urllib.request
 
 ROOT = os.path.dirname(__file__)
@@ -49,11 +50,14 @@ def discover_nodes():
             with urllib.request.urlopen(req, timeout=1.2) as response:
                 if response.status != 200:
                     continue
+            info = fetch_json(node_url(node_id, '/api/info'), timeout=1.2)
         except Exception:
             continue
         nodes.append({
             'id': node_id,
             'port': port,
+            'hostname': info.get('hostname') or PEER_HOSTS[port],
+            'host': PEER_HOSTS[port],
             'healthy': True,
             'enabled': True,
         })
@@ -99,6 +103,8 @@ def proxy_post(target_url, payload):
     try:
         with urllib.request.urlopen(req, timeout=2) as response:
             return response.status, response.read().decode('utf-8', 'replace')
+    except HTTPError as error:
+        return error.code, error.read().decode('utf-8', 'replace')
     except Exception:
         return 503, '{"error":"unavailable"}'
 
@@ -143,7 +149,7 @@ def summarize_cluster_state():
 
     return {
         'leader': f'Node {leader_id}' if leader_id is not None else 'Unknown',
-        'tokenHolder': f'Node {token_id}' if token_id is not None else 'Unknown',
+        'tokenHolder': f'Node {token_id}' if token_id is not None else 'Circulating',
         'leaderId': leader_id,
         'tokenHolderId': token_id,
         'scores': aggregated_scores,
@@ -220,7 +226,7 @@ class UIHandler(SimpleHTTPRequestHandler):
                 'relay': bool(data.get('relay', False)),
             }
             status, result = proxy_post(node_url(node_id, '/api/chat'), payload)
-            send_json(self, {'status': status, 'result': result})
+            send_json(self, {'status': status, 'result': result}, status=status)
             return
 
         if path == '/api/election':
@@ -229,7 +235,7 @@ class UIHandler(SimpleHTTPRequestHandler):
             msg_type = data.get('type', 'ELECTION')
             payload = {'type': msg_type, 'sender_id': node_id}
             status, result = proxy_post(node_url(node_id, '/api/election'), payload)
-            send_json(self, {'status': status, 'result': result})
+            send_json(self, {'status': status, 'result': result}, status=status)
             return
 
         if path == '/api/token':
@@ -240,7 +246,19 @@ class UIHandler(SimpleHTTPRequestHandler):
                 'scores': data.get('scores', {}),
             }
             status, result = proxy_post(node_url(node_id, '/api/token'), payload)
-            send_json(self, {'status': status, 'result': result})
+            send_json(self, {'status': status, 'result': result}, status=status)
+            return
+
+        if path == '/api/token/request':
+            data = json.loads(body.decode('utf-8')) if body else {}
+            node_id = int(data.get('nodeId', 0))
+            status, result = proxy_post(node_url(node_id, '/api/token/request'), {})
+            if status == 404:
+                status, result = proxy_post(node_url(node_id, '/api/token'), {
+                    'token_holder': node_id,
+                    'scores': data.get('scores', {}),
+                })
+            send_json(self, {'status': status, 'result': result}, status=status)
             return
 
         send_text(self, 'Not Found', 404)

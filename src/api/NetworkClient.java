@@ -50,8 +50,16 @@ public class NetworkClient {
     }
 
     public CompletableFuture<Integer> post(int port, String path, String jsonBody) {
+        String host;
+        try {
+            host = hostFor(port);
+        } catch (IllegalStateException ex) {
+            System.out.println("[" + selfNodeId + "] POST to port " + port
+                    + path + " skipped: " + ex.getMessage());
+            return CompletableFuture.completedFuture(-1);
+        }
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://" + hostFor(port) + ":" + port + path))
+                .uri(URI.create("http://" + host + ":" + port + path))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))

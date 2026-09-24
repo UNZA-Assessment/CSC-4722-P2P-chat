@@ -49,9 +49,11 @@ function renderNodeOptions() {
   }
 
   state.nodes.forEach((node) => {
+    const hostname = node.hostname || `Node-${node.id}`;
+    const host = node.host || 'address unavailable';
     const option = document.createElement('option');
     option.value = String(node.id);
-    option.textContent = `Node ${node.id} · port ${node.port}`;
+    option.textContent = `${hostname} · Node ${node.id} · port ${node.port}`;
     nodeSelect.appendChild(option);
   });
 
@@ -68,6 +70,8 @@ function renderNodeList() {
   nodeList.innerHTML = '';
 
   state.nodes.forEach((node) => {
+    const hostname = node.hostname || `Node-${node.id}`;
+    const host = node.host || 'address unavailable';
     const item = document.createElement('div');
     item.className = 'node-card';
     if (node.id === state.leaderId) {
@@ -79,7 +83,7 @@ function renderNodeList() {
 
     const meta = document.createElement('div');
     meta.className = 'node-meta';
-    meta.innerHTML = `<strong>Node ${node.id}</strong><span>port ${node.port}</span>`;
+    meta.innerHTML = `<strong>${hostname}</strong><span>Node ${node.id} · ${host}:${node.port}</span>`;
 
     const controls = document.createElement('div');
     controls.style.display = 'flex';
@@ -242,12 +246,13 @@ async function fetchJson(url, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
+  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new Error(data.result || data.error || `Request failed: ${response.status}`);
   }
 
-  return response.json();
+  return data;
 }
 
 function computeLeader() {
@@ -313,6 +318,8 @@ async function triggerElection() {
     updateMeta();
   } catch (error) {
     console.error(error);
+    state.lastAction = `Election failed: ${error.message}`;
+    updateMeta();
   }
 }
 
@@ -327,19 +334,16 @@ async function requestToken() {
   state.lastAction = `Token request on node ${nodeId}`;
 
   try {
-    const payload = {
-      nodeId,
-      token_holder: nodeId,
-      scores: state.scores,
-    };
-    await fetchJson('/api/token', {
+    await fetchJson('/api/token/request', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ nodeId }),
     });
-    state.tokenHolder = `Node ${nodeId}`;
+    state.tokenHolder = 'Pending token';
     updateMeta();
   } catch (error) {
     console.error(error);
+    state.lastAction = `Token request failed: ${error.message}`;
+    updateMeta();
   }
 }
 
@@ -355,11 +359,16 @@ async function sendMessage(event) {
   }
 
   const nodeId = Number(state.selectedNode);
+  const vectorLength = Math.max(
+    state.nodes.reduce((length, node) => Math.max(length, Number(node.id) + 1), 0),
+    nodeId + 1,
+    1,
+  );
   const payload = {
     nodeId,
     text,
     lamport: 1,
-    vector: Array.from({ length: Math.max(state.nodes.length, 1) }, (_, index) => index === nodeId ? 1 : 0),
+    vector: Array.from({ length: vectorLength }, (_, index) => index === nodeId ? 1 : 0),
     relay: false,
   };
 
@@ -382,6 +391,8 @@ async function sendMessage(event) {
     updateMeta();
   } catch (error) {
     console.error(error);
+    state.lastAction = `Message failed: ${error.message}`;
+    updateMeta();
   }
 }
 

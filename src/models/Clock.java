@@ -29,7 +29,8 @@ public class Clock {
         lamportTime = Math.max(lamportTime, incomingLamport) + 1;
 
         if (incomingVector != null) {
-            for (int i = 0; i < vectorClock.length; i++) {
+            int sharedLength = Math.min(vectorClock.length, incomingVector.length);
+            for (int i = 0; i < sharedLength; i++) {
                 vectorClock[i] = Math.max(vectorClock[i], incomingVector[i]);
             }
         }
