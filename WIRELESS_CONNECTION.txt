@@ -1,0 +1,136 @@
+CSC 4722 P2P CHAT - WIRELESS CONNECTION SETUP
+===============================================
+
+Purpose
+-------
+Use this guide to connect the Java nodes on multiple laptops over the same
+Wi-Fi network.
+
+1. Connect all laptops to the same Wi-Fi
+-----------------------------------------
+Every laptop must be connected to the same trusted wireless network.
+Do not use a guest Wi-Fi network that blocks laptop-to-laptop traffic.
+
+2. Find each laptop IP address
+------------------------------
+On Linux, run:
+
+    hostname -I
+
+Use the wireless/LAN address. Example:
+
+    Laptop A: 10.168.132.206
+    Laptop B: 10.168.132.125
+    Laptop C: 10.168.132.140
+
+Replace these example addresses with the real addresses from your network.
+
+3. Allow the node ports through the firewall
+---------------------------------------------
+Run on every laptop that will host a node:
+
+    sudo ufw allow 8000:8009/tcp
+
+If UFW is inactive, no additional UFW rule is needed. Other firewall software
+must also allow TCP traffic on the node ports.
+
+4. Choose the node layout
+--------------------------
+Use the same port base and total node count on every laptop.
+
+    Node 0 -> port 8000 -> Laptop A IP
+    Node 1 -> port 8001 -> Laptop B IP
+    Node 2 -> port 8002 -> Laptop C IP
+
+The peer mapping uses PORT=IP entries, not NODE_ID=IP entries.
+
+5. Configure every laptop
+--------------------------
+Set the complete mapping in every terminal that starts a node:
+
+    export P2P_PEERS='8000=10.168.132.206,8001=10.168.132.125,8002=10.168.132.140'
+
+Use the actual IP addresses from step 2.
+
+6. Build the project on every laptop
+-------------------------------------
+From the project directory, run:
+
+    javac -d out $(find src -name "*.java")
+
+7. Start one node per laptop
+-----------------------------
+Run only the assigned node on each laptop. The first argument is the total
+number of nodes. The second is the shared port base. The third is this laptop's
+node ID.
+
+Laptop A, node 0:
+
+    ./start_all.sh 3 8000 0
+
+Laptop B, node 1:
+
+    ./start_all.sh 3 8000 1
+
+Laptop C, node 2:
+
+    ./start_all.sh 3 8000 2
+
+Do not run ./start_all.sh 3 8000 without the third argument on every laptop,
+because that starts all nodes locally and is not the multi-laptop setup.
+
+8. Test communication from every laptop
+----------------------------------------
+Run these commands from each laptop:
+
+    curl http://10.168.132.206:8000/api/health
+    curl http://10.168.132.125:8001/api/health
+    curl http://10.168.132.140:8002/api/health
+
+Every running node should return:
+
+    {"status":"ALIVE"}
+
+If curl reports connection refused, the target node is not running or is using
+a different port. If curl times out, check the IP address, Wi-Fi isolation,
+and firewall rules.
+
+9. Start the dashboard (optional)
+----------------------------------
+Run the dashboard on one laptop using the same peer mapping:
+
+    export P2P_BASE_PORT=8000
+    python3 ui/server.py
+
+Open this URL from any laptop on the same Wi-Fi network:
+
+    http://DASHBOARD_LAPTOP_IP:8080/
+
+For example:
+
+    http://10.168.132.206:8080/
+
+The dashboard displays only nodes listed in P2P_PEERS. It does not scan or add
+local nodes automatically.
+
+10. Stop a node
+---------------
+On the laptop running that node, run:
+
+    ./kill_all.sh
+
+For a single-node launch, this stops the node started by the project scripts.
+
+Troubleshooting checklist
+-------------------------
+- Confirm every laptop is on the same Wi-Fi network.
+- Confirm the IP addresses have not changed.
+- Run hostname -I again after reconnecting to Wi-Fi.
+- Confirm P2P_PEERS is set in the same terminal used to launch the node.
+- Confirm every laptop uses the same total node count and port base.
+- Confirm each node ID is unique.
+- Confirm the firewall allows TCP ports 8000 through 8009.
+- Test the target laptop with curl before testing the dashboard.
+- Do not use 192.168.1.x unless that is the actual address on this Wi-Fi.
+- Do not expose these unauthenticated development endpoints to the public
+  internet.
