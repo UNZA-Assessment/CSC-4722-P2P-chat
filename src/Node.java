@@ -71,7 +71,7 @@ public class Node {
         String hostName = InetAddress.getLocalHost().getHostName();
         NetworkClient networkClient = new NetworkClient(nodeId, peerHosts);
         Clock clock = new Clock(nodeId, totalNodes);
-        MutualExclusion mutex = new MutualExclusion(nodeId, nextPeerPort, nodeId == 0, networkClient);
+        MutualExclusion mutex = new MutualExclusion(nodeId, nextPeerPort, nodeId == 0, networkClient, clock);
         Election election = new Election(nodeId, peerPorts, networkClient);
         ElectionFailureHandler failureHandler = new ElectionFailureHandler(election, networkClient);
 

@@ -147,6 +147,8 @@ def summarize_cluster_state():
             'tokenHolder': 'Unknown',
             'leaderId': None,
             'tokenHolderId': None,
+            'lamport': 0,
+            'vector': [],
             'scores': {},
         }
 
@@ -162,12 +164,15 @@ def summarize_cluster_state():
 
     leader_id = max(leader_counts.items(), key=lambda item: item[1])[0] if leader_counts else None
     token_id = max(token_counts.items(), key=lambda item: item[1])[0] if token_counts else None
+    latest_clock = max(all_states, key=lambda state: state.get('lamport', 0))
 
     return {
         'leader': f'Node {leader_id}' if leader_id is not None else 'Unknown',
         'tokenHolder': f'Node {token_id}' if token_id is not None else 'Circulating',
         'leaderId': leader_id,
         'tokenHolderId': token_id,
+        'lamport': latest_clock.get('lamport', 0),
+        'vector': latest_clock.get('vector', []),
         'scores': aggregated_scores,
     }
 

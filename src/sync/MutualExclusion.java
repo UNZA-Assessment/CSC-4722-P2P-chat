@@ -2,6 +2,7 @@ package sync;
 
 import api.Json;
 import api.NetworkClient;
+import models.Clock;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -24,6 +25,7 @@ public class MutualExclusion {
     private final int nodeId;
     private final int nextPeerPort;
     private final NetworkClient networkClient;
+    private final Clock clock;
     private final Map<String, Integer> scoreboard = new HashMap<>();
 
     private int pendingScoreUpdates;
@@ -31,11 +33,17 @@ public class MutualExclusion {
     private volatile int currentTokenHolder = -1;
 
     public MutualExclusion(int nodeId, int nextPeerPort, boolean startsWithToken, NetworkClient networkClient) {
+        this(nodeId, nextPeerPort, startsWithToken, networkClient, null);
+    }
+
+    public MutualExclusion(int nodeId, int nextPeerPort, boolean startsWithToken,
+                           NetworkClient networkClient, Clock clock) {
         this.nodeId = nodeId;
         this.nextPeerPort = nextPeerPort;
         this.hasToken = startsWithToken;
         this.currentTokenHolder = startsWithToken ? nodeId : -1;
         this.networkClient = networkClient;
+        this.clock = clock;
     }
 
     public void requestCriticalSection() {
@@ -52,14 +60,23 @@ public class MutualExclusion {
     }
 
     public void receiveToken() {
-        receiveToken(new HashMap<>());
+        receiveToken(new HashMap<>(), 0, null);
     }
 
     public void receiveToken(Map<String, Integer> incomingScores) {
+        receiveToken(incomingScores, 0, null);
+    }
+
+    public void receiveToken(Map<String, Integer> incomingScores,
+                             int incomingLamport, int[] incomingVector) {
         Map<String, Integer> scoresToForward;
         synchronized (this) {
             hasToken = true;
             currentTokenHolder = nodeId;
+
+            if (clock != null && (incomingLamport > 0 || incomingVector != null)) {
+                clock.updateOnReceive(incomingLamport, incomingVector);
+            }
 
             if (incomingScores != null) {
                 for (Map.Entry<String, Integer> entry : incomingScores.entrySet()) {
@@ -82,10 +99,25 @@ public class MutualExclusion {
         return new HashMap<>(scoreboard);
     }
 
+    public int getLamportTime() {
+        return clock == null ? 0 : clock.getLamportTime();
+    }
+
+    public int[] getVectorClock() {
+        return clock == null ? new int[0] : clock.getVectorClock();
+    }
+
     private void passToken(Map<String, Integer> scores) {
+        if (clock != null) {
+            clock.tick();
+        }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("token_holder", nodeId);
         payload.put("scores", scores);
+        if (clock != null) {
+            payload.put("lamport", clock.getLamportTime());
+            payload.put("vector", clock.getVectorClock());
+        }
 
         System.out.println("Node " + nodeId + " passing token to port " + nextPeerPort);
 

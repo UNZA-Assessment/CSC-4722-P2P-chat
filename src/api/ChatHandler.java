@@ -75,6 +75,8 @@ public class ChatHandler implements HttpHandler {
                         "{\"nodeId\":" + nodeId + ",\"leaderId\":" + leaderId
                                 + ",\"tokenHolderId\":" + tokenHolder
                                 + ",\"electionInProgress\":" + election.isElectionInProgress()
+                    + ",\"lamport\":" + mutex.getLamportTime()
+                    + ",\"vector\":" + Json.stringify(mutex.getVectorClock())
                                 + ",\"scores\":" + scores + "}");
                         } else if ("GET".equals(method) && "/api/info".equals(path)) {
                         sendResponse(exchange, 200, "{\"nodeId\":" + nodeId
@@ -193,7 +195,26 @@ public class ChatHandler implements HttpHandler {
             }
         }
 
-        mutex.receiveToken(incomingScores);
+        int incomingLamport = 0;
+        Object lamport = payload.get("lamport");
+        if (lamport instanceof Number) {
+            incomingLamport = ((Number) lamport).intValue();
+        }
+
+        int[] incomingVector = null;
+        Object vector = payload.get("vector");
+        if (vector instanceof List) {
+            List<?> rawVector = (List<?>) vector;
+            incomingVector = new int[rawVector.size()];
+            for (int i = 0; i < rawVector.size(); i++) {
+                Object value = rawVector.get(i);
+                if (value instanceof Number) {
+                    incomingVector[i] = ((Number) value).intValue();
+                }
+            }
+        }
+
+        mutex.receiveToken(incomingScores, incomingLamport, incomingVector);
         sendResponse(exchange, 200, "{\"status\":\"Token Handled\"}");
     }
 

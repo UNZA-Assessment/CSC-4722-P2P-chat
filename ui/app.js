@@ -7,6 +7,8 @@ const state = {
   tokenHolder: 'Unknown',
   leaderId: null,
   tokenHolderId: null,
+  lamport: 0,
+  vector: [],
   lastAction: 'Idle',
 };
 
@@ -154,6 +156,11 @@ function renderMessages() {
 
 function renderScores() {
   scoreboard.innerHTML = '';
+  const clockRow = document.createElement('div');
+  clockRow.className = 'score-row';
+  clockRow.innerHTML = `<span>Lamport / Vector</span><strong>${state.lamport} / [${state.vector.join(', ')}]</strong>`;
+  scoreboard.appendChild(clockRow);
+
   const entries = Object.entries(state.scores).sort((a, b) => b[1] - a[1]);
 
   entries.forEach(([name, score]) => {
@@ -212,6 +219,8 @@ async function refreshSystemState() {
     } else {
       state.scores = {};
     }
+    state.lamport = Number.isInteger(data?.lamport) ? data.lamport : 0;
+    state.vector = Array.isArray(data?.vector) ? data.vector : [];
   } catch (error) {
     console.error('Failed to refresh system state', error);
     state.leader = 'Unknown';
@@ -219,6 +228,8 @@ async function refreshSystemState() {
     state.leaderId = null;
     state.tokenHolderId = null;
     state.scores = {};
+    state.lamport = 0;
+    state.vector = [];
   }
 
   renderScores();
