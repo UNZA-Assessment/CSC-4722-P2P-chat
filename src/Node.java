@@ -35,6 +35,14 @@ public class Node {
     private static final long POLL_INTERVAL_MS = 1000;
     private static final int FAILURE_THRESHOLD = 3; // consecutive misses before triggering election
 
+    // Multiple nodes CAN share one physical host (different ports, same
+    // machine) - that's a legitimate setup when you have fewer laptops
+    // than node IDs. This ceiling only exists to catch a genuine config
+    // mistake (e.g. accidentally pointing every port at one IP by typo),
+    // not to forbid intentional doubling-up. Raise it if your real
+    // hardware layout needs more nodes on one machine than this.
+    private static final int MAX_NODES_PER_HOST = 4;
+
     public static void main(String[] args) throws Exception {
         if (args.length < 3) {
             System.out.println("Usage: java Node <nodeId> <portBase> <totalNodes>");
@@ -126,16 +134,40 @@ public class Node {
         if (peerHosts.isEmpty()) {
             return;
         }
-        Map<String, Integer> seen = new HashMap<>();
+
+        Map<String, List<Integer>> hostToPorts = new HashMap<>();
         for (int port : peerPorts) {
             String host = peerHosts.get(port);
             if (host == null || host.isBlank()) {
                 throw new IllegalArgumentException("Missing P2P_PEERS entry for port " + port);
             }
-            Integer previousPort = seen.put(host, port);
-            if (previousPort != null) {
-                throw new IllegalArgumentException("One IP cannot host multiple nodes: "
-                        + host + " is assigned to ports " + previousPort + " and " + port);
+            hostToPorts.computeIfAbsent(host, h -> new ArrayList<>()).add(port);
+        }
+
+        for (Map.Entry<String, List<Integer>> entry : hostToPorts.entrySet()) {
+            String host = entry.getKey();
+            List<Integer> ports = entry.getValue();
+
+            if (ports.size() > 1) {
+                // Soft warning only - this is a normal setup when there are
+                // fewer physical machines than nodes. Printed so it's easy
+                // to confirm the layout was intentional when reading logs.
+                System.out.println("[startup] NOTE: " + host + " is hosting " + ports.size()
+                        + " nodes on ports " + ports + ". This is fine if intentional"
+                        + " (e.g. limited hardware); each still runs as an independent"
+                        + " process on its own port.");
+            }
+
+            if (ports.size() > MAX_NODES_PER_HOST) {
+                // Hard stop - this many nodes on one host is far more
+                // likely to be a config mistake (e.g. every port
+                // accidentally pointed at the same IP) than a deliberate
+                // choice. Raise MAX_NODES_PER_HOST above if your hardware
+                // genuinely needs more.
+                throw new IllegalArgumentException(host + " is hosting " + ports.size()
+                        + " nodes (ports " + ports + "), which exceeds the safety ceiling of "
+                        + MAX_NODES_PER_HOST + " nodes per host. If this is really intended,"
+                        + " raise MAX_NODES_PER_HOST in Node.java.");
             }
         }
     }
