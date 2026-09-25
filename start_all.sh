@@ -3,6 +3,12 @@
 # Usage: P2P_PEERS='8000=192.168.1.10,8001=192.168.1.11' ./start_all.sh [N] [PORT_BASE] [NODE_ID]
 set -e
 
+# Load the shared peer map for direct start_all.sh usage. An explicitly
+# supplied P2P_PEERS value still takes precedence.
+if [[ -z "${P2P_PEERS:-}" && -f P2P_PEERS.env ]]; then
+  source P2P_PEERS.env
+fi
+
 N="${1:-3}"
 PORT_BASE="${2:-8000}"
 NODE_ID="${3:-}"

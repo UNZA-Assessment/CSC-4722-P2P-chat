@@ -8,6 +8,22 @@ import urllib.request
 
 ROOT = os.path.dirname(__file__)
 HOST = '0.0.0.0'
+
+
+def load_shared_config():
+    config_path = os.path.join(ROOT, '..', 'P2P_PEERS.env')
+    if not os.path.isfile(config_path):
+        return
+    with open(config_path, encoding='utf-8') as config_file:
+        for line in config_file:
+            line = line.strip()
+            if line.startswith('export P2P_BASE_PORT=') and 'P2P_BASE_PORT' not in os.environ:
+                os.environ['P2P_BASE_PORT'] = line.split('=', 1)[1].strip("'\"")
+            elif line.startswith('export P2P_PEERS=') and 'P2P_PEERS' not in os.environ:
+                os.environ['P2P_PEERS'] = line.split('=', 1)[1].strip().strip("'\"")
+
+
+load_shared_config()
 PORT = 8080
 BASE_PORT = int(os.environ.get('P2P_BASE_PORT', '8000'))
 
