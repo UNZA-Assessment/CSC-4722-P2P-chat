@@ -26,7 +26,7 @@ public class MutualExclusion {
     private final NetworkClient networkClient;
     private final Map<String, Integer> scoreboard = new HashMap<>();
 
-    private boolean wantsToUpdateScore = false;
+    private int pendingScoreUpdates;
     private boolean hasToken;
     private volatile int currentTokenHolder = -1;
 
@@ -41,7 +41,7 @@ public class MutualExclusion {
     public void requestCriticalSection() {
         Map<String, Integer> scoresToForward = null;
         synchronized (this) {
-            wantsToUpdateScore = true;
+            pendingScoreUpdates++;
             if (hasToken) {
                 scoresToForward = consumeTokenLocked();
             }
@@ -93,11 +93,11 @@ public class MutualExclusion {
     }
 
     private Map<String, Integer> consumeTokenLocked() {
-        if (wantsToUpdateScore) {
+        if (pendingScoreUpdates > 0) {
             System.out.println("Node " + nodeId + " ENTERING critical section.");
-            scoreboard.merge("node_" + nodeId, 1, Integer::sum);
+            scoreboard.merge("node_" + nodeId, pendingScoreUpdates, Integer::sum);
             System.out.println("Node " + nodeId + " EXITING critical section.");
-            wantsToUpdateScore = false;
+            pendingScoreUpdates = 0;
         }
         hasToken = false;
         currentTokenHolder = -1;
